@@ -1,6 +1,4 @@
-# Dashboard-Ubidots-Assignmrnt-2
-
-# Tutorial Menjalankan Sensor DHT11 dan PIR dengan ESP32, Dashboard Ubidots, dan MongoDB
+# Tutorial Menjalankan Sensor DHT11 dan PIR dengan ESP32, Dashboard Ubidots, dan MongoDB By Lintas Alam Team
 
 ## Pendahuluan
 Tutorial ini menjelaskan langkah-langkah untuk menghubungkan sensor DHT11 dan PIR ke ESP32, mengirimkan datanya ke dashboard Ubidots, serta menyimpan data tersebut di MongoDB menggunakan server Flask.
@@ -13,12 +11,29 @@ Tutorial ini menjelaskan langkah-langkah untuk menghubungkan sensor DHT11 dan PI
 - Sensor PIR
 - Breadboard dan kabel jumper
 - Koneksi WiFi
+- Laptop dengan Python terinstal
 
 ---
 
-## 2. Instalasi dan Konfigurasi
+## 2. Wiring ESP32 dengan Sensor
 
-### 2.1 Instalasi Perpustakaan Python
+Berikut adalah skema koneksi:
+- **DHT11/DHT22**:
+  - VCC ke **3.3V** ESP32
+  - GND ke **GND** ESP32
+  - Data ke **GPIO14**
+- **PIR Sensor**:
+  - VCC ke **3.3V** ESP32
+  - GND ke **GND** ESP32
+  - Output ke **GPIO27**
+
+Pastikan semua koneksi sudah sesuai sebelum melanjutkan ke tahap pemrograman.
+
+---
+
+## 3. Instalasi dan Konfigurasi
+
+### 3.1 Instalasi Perpustakaan Python
 Pastikan Anda telah menginstal Python dan beberapa pustaka berikut:
 ```bash
 pip install flask pymongo
@@ -26,7 +41,7 @@ pip install flask pymongo
 
 ---
 
-### 2.2 Kode Server Flask (Python)
+### 3.2 Kode Server Flask (Python)
 Buat file `server.py` dan salin kode berikut:
 
 ```python
@@ -38,7 +53,7 @@ import datetime
 app = Flask(__name__)
 
 # Koneksi ke MongoDB
-client = MongoClient("mongodb+srv://<USERNAME>:<PASSWORD>@cluster0.vtbru.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+client = MongoClient("mongodb+srv://<USERNAME>:<PASSWORD>@cluster0.mongodb.net/?retryWrites=true&w=majority")
 db = client["sensordb"]
 collection = db["sensor_data"]
 
@@ -74,7 +89,7 @@ python server.py
 
 ---
 
-### 2.3 Kode ESP32 (MicroPython)
+### 3.3 Kode ESP32 (MicroPython)
 Unggah kode berikut ke ESP32:
 
 ```python
@@ -96,7 +111,7 @@ dht_sensor = dht.DHT22(Pin(DHT_PIN))
 pir_sensor = Pin(PIR_PIN, Pin.IN)
 
 # URL Flask API
-FLASK_URL = "http://10.80.3.98:5000/sensor"
+FLASK_URL = "http://<SERVER_IP>:5000/sensor"
 
 # Fungsi Koneksi ke WiFi
 def connect_wifi():
@@ -110,35 +125,24 @@ def connect_wifi():
     
     print("Terhubung ke WiFi:", wlan.ifconfig())
 
-# Fungsi untuk Membaca Sensor dengan Normalisasi Data
+# Fungsi untuk Membaca Sensor
 def read_sensors():
     try:
         dht_sensor.measure()
         temperature = dht_sensor.temperature()
         humidity = dht_sensor.humidity()
-        
-        if temperature < 0 or temperature > 50:
-            temperature = temperature / 10  
-        if humidity < 0 or humidity > 100:
-            humidity = humidity / 10
-
+        pir_value = pir_sensor.value()
     except Exception as e:
         print("Gagal membaca sensor:", str(e))
-        temperature, humidity = -1, -1
-
-    pir_value = pir_sensor.value()
+        temperature, humidity, pir_value = -1, -1, -1
+    
     return temperature, humidity, pir_value
 
 # Fungsi Kirim Data ke Flask API
 def send_data():
     while True:
         temperature, humidity, pir_value = read_sensors()
-        
-        payload = {
-            "temperature": temperature,
-            "humidity": humidity,
-            "pir_sensor": pir_value
-        }
+        payload = {"temperature": temperature, "humidity": humidity, "pir_sensor": pir_value}
         
         try:
             response = urequests.post(FLASK_URL, json=payload)
@@ -147,7 +151,7 @@ def send_data():
         except Exception as e:
             print("Gagal mengirim data:", str(e))
         
-        utime.sleep(5)  
+        utime.sleep(5)
 
 # Program Utama
 def main():
@@ -162,26 +166,34 @@ Unggah kode ke ESP32 dan jalankan.
 
 ---
 
-## 3. Integrasi dengan Ubidots
+## 4. Integrasi dengan Ubidots
 1. Buat akun di [Ubidots](https://ubidots.com/).
 2. Tambahkan **Device** baru.
 3. Buat **Variable** untuk suhu, kelembapan, dan sensor PIR.
-4. Gunakan webhook atau API Ubidots untuk mengirim data dari Flask ke Ubidots.
+4. Gunakan **Webhook** untuk menghubungkan Flask API ke Ubidots.
+
+Cara menggunakan Webhook di Ubidots:
+- Masuk ke **Plugins** > **Add Plugin** > **Webhook**.
+- Tambahkan endpoint **http://<SERVER_IP>:5000/sensor** dengan metode **POST**.
+- Atur format data sesuai dengan payload ESP32.
 
 ---
 
-## 4. Menjalankan dan Memantau Data
-- Jalankan server Flask
-- Pastikan ESP32 terhubung dan mengirim data
-- Periksa MongoDB untuk data yang tersimpan
-- Pantau grafik pada dashboard Ubidots
+## 5. Menjalankan dan Memantau Data
+- Jalankan server Flask dengan `python server.py`.
+- Pastikan ESP32 terhubung dan mengirim data.
+- Periksa MongoDB untuk data yang tersimpan dengan perintah:
+```bash
+mongo
+use sensordb
+db.sensor_data.find().pretty()
+```
+- Pantau grafik pada dashboard Ubidots.
 
 ---
 
 ## Kesimpulan
-Dengan tutorial ini, Anda telah berhasil menghubungkan sensor DHT11 dan PIR ke ESP32, mengirim data ke MongoDB melalui server Flask, dan menampilkannya di dashboard Ubidots.
-
----
+Dengan tutorial ini, Anda telah berhasil menghubungkan sensor DHT11 dan PIR ke ESP32, mengirim data ke MongoDB melalui server Flask, serta menampilkannya di dashboard Ubidots.
 
 Semoga bermanfaat! 🚀
 
